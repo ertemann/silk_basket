@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-def calc_ma(df, window, column=None):
+def calc_ma(df, window,
+            column=None):
 
     if not column:
         df = df.rolling(window=window).mean()
@@ -23,7 +24,8 @@ def calc_perc_row(df):
 
     return perc_df
 
-def transfer_date_to_datetime(df, column, format=None, set_index=True):
+def transfer_date_to_datetime(df, column,
+                              format=None, set_index=True):
     """
     format example: '%YYYY%mm%dd'
     """
