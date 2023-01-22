@@ -25,65 +25,63 @@
 import os
 
 
-import time
 import sys
+
+import datetime
+from dateutil.relativedelta import relativedelta
 
 import pandas as pd
 
-method = {'Manual': 10,
-          'GDP': 50,
-          'PP': 40,
-          'GT': 0}
-
 class Basket_Model:
     def __init__(self,
-                 method_weights: dict,
-                 adjusting_period: int,
+                 method_parameters: dict,
                  price_data: pd.DataFrame,
-                 start_date: time.datetime,
-                 time_frame_GDP=15,
-                 time_frame_PP=5,
-                 time_frame_GT=10,
-                 manual_weights=None,
-                 min_basket_size=1,
-                 n_currencies_pp=5,
-                 weighted_pp=False):
+                 GDP_data : pd.DataFrame,
+                 GT_data : pd.DataFrame,
+                 start_date
+                 ):
 
-        self.method_weights = method_weights
-        self.adjusting_period = adjusting_period
+        self.method_parameters = method_parameters
         self.price_data = price_data
+        self.GDP_data = GDP_data
         self.start_date = start_date
-
-        self.time_frame_GDP = time_frame_GDP
-        self.time_frame_PP = time_frame_PP
-        self.time_frame_GT = time_frame_GT
-        self.manual_weights = manual_weights
-
-        self.n_currencies = n_currencies_pp
-        self.weighted = weighted_pp
 
 
     def fit(self):
 
         target_weights_dict = {}
-        for method_key in self.method_weights.items():
+        for method_key in self.method_parameters.keys():
 
             if method_key == 'Manual':
                 print('determine target weights for final year')
-                target_weights_dict_sample = self.manual_weights * self.method_weights[method_key]
+                parameters = self.method_parameters[method_key]
+                target_weights_dict_sample = {}
+                for currency in parameters['weights'].keys():
+                    target_weights_dict_sample.update({currency: parameters['weights'][currency]/100 * 100/parameters['weight']})
+
             elif method_key == "GDP":
-                target_weights_dict_sample = calc_weights_GDP(self.price_data, self.start_date, self.time_frame_GDP) \
-                                             * self.method_weights[method_key]
                 print('determine weights based on GDP')
+                parameters = self.method_parameters[method_key]
+                target_weights_dict_sample = calc_weights_GDP(self.GDP_data, self.start_date, parameters['time_period'])
+                for currency in target_weights_dict_sample.keys():
+                    target_weights_dict_sample[currency] = target_weights_dict_sample[currency] * 100/parameters['weight']
+
+
             elif method_key == "PP":
                 print('determine weights based on past time_frame price data performance')
-                target_weights_dict_sample = calc_weights_PP(self.price_data, self.start_date, self.time_frame_PP,
-                                                             self.n_currencies, self.weighted) \
-                                             * self.method_weights[method_key]
+                parameters = self.method_parameters[method_key]
+                target_weights_dict_sample = calc_weights_PP(self.price_data, self.start_date, parameters['time_period'],
+                                                             parameters['n_currncies'], parameters['weighted'])
+                for currency in target_weights_dict_sample.keys():
+                    target_weights_dict_sample[currency] = target_weights_dict_sample[currency] * 100/parameters['weight']
+
             elif method_key == "GT":
                 print('determine weights baded on % of use in gloval trade in time frame')
-                target_weights_dict_sample = calc_weights_GT(self.price_data, self.start_date, self.time_frame_GDP) \
-                                             * self.method_weights[method_key]
+                parameters = self.method_parameters[method_key]
+                target_weights_dict_sample = calc_weights_GT(self.price_data, self.start_date, parameters['time_period'])
+                for currency in target_weights_dict_sample.keys():
+                    target_weights_dict_sample[currency] = target_weights_dict_sample[currency] * 100/parameters['weight']
+
             else:
                 print('method not found')
                 sys.exit()
@@ -92,7 +90,7 @@ class Basket_Model:
             if key in target_weights_dict.keys():
                 target_weights_dict[key] = target_weights_dict[key] + target_weights_dict_sample[key]
 
-        return target_weights_dict
+        self.target_weights_dict = target_weights_dict
 
 
 def calc_weights_GDP(data, date, timeframe_year):
@@ -112,7 +110,7 @@ def calc_weights_GDP(data, date, timeframe_year):
     -------
 
     """
-    start_year = (date - timeframe_year).year
+    start_year = (date - relativedelta(years=timeframe_year)).year
     timeframe_slice = slice(start_year, date.year)
 
     data_summed_timeframe = data.iloc[timeframe_slice,:].sum(axis=0)
